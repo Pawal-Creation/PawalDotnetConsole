@@ -1,9 +1,10 @@
-﻿using AnosuApi;
+﻿using PawalApi;
 using System.Text;
+using System.Net;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace AnosuDotnetConsole;
+namespace PawalDotnetConsole;
 internal class Program
 {
     private static string SelectPath(string keyword)
@@ -31,14 +32,22 @@ internal class Program
     private static async Task Main(string[] args)
     {
         IServiceCollection services = new ServiceCollection();
-        services.AddAnosuRestfulApi();
+        services.AddAnosuApi();
         services.AddLogging(builder => {
             builder.AddConsole();
             builder.SetMinimumLevel(LogLevel.Information);
         });
         IServiceProvider provider = services.BuildServiceProvider();
         ILogger<Program> logger = provider.GetRequiredService<ILogger<Program>>();
-        IAnosuApi api = provider.GetRequiredService<IAnosuApi>();
+        IPawalApi api = provider.GetRequiredService<IPawalApi>();
+        logger.LogInformation(@"
+ ____                     _    ____                      _      
+|  _ \ __ ___      ____ _| |  / ___|___  _ __  ___  ___ | | ___ 
+| |_) / _` \ \ /\ / / _` | | | |   / _ \| '_ \/ __|/ _ \| |/ _ \
+|  __/ (_| |\ V  V / (_| | | | |__| (_) | | | \__ \ (_) | |  __/
+|_|   \__,_| \_/\_/ \__,_|_|  \____\___/|_| |_|___/\___/|_|\___|                                                                
+        ");
+        logger.LogInformation("Welcome to use PawalConsole");
         logger.LogInformation("Input a line of string to search image");
         CancellationTokenSource cts = new CancellationTokenSource();
         Console.CancelKeyPress += (sender,e)=>
@@ -60,8 +69,22 @@ internal class Program
                 logger.LogInformation("Bye");
                 return;
             }
-            byte[] image = await api.LookupImageAsync(keyword);
-            if(image.Length == 0)
+            byte[]? image = null;
+            try
+            {
+                image = await api.LookupImageAsync(keyword);
+            }
+            catch (ApplicationException ex)
+            {
+                logger.LogError(ex.Message);
+                continue;
+            }
+            catch(HttpRequestException ex)
+            {
+                logger.LogError(ex.Message);
+                continue;
+            }
+            if(image is null || image.Length == 0)
             {
                 logger.LogError($"Cannot find image about {keyword}");
                 continue;
@@ -80,7 +103,7 @@ internal class Program
             {
                 if(!fs.IsAsync)
                 {
-                    logger.LogWarning("File I/O execution on synchronized model");
+                    logger.LogWarning("File I/O executed on synchronized model");
                 }
                 await fs.WriteAsync(image);
                 logger.LogInformation($"Image write to ${path}");
